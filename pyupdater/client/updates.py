@@ -604,6 +604,7 @@ class AppUpdate(LibUpdate):
                 self._win_overwrite_restart()
             else:
                 self._overwrite()
+                self._postupdate_install()
                 self._restart()
         except ClientError as err:
             log.debug(err, exc_info=True)
@@ -616,6 +617,7 @@ class AppUpdate(LibUpdate):
                 self._win_overwrite()
             else:
                 self._overwrite()
+                self._postupdate_install()
         except ClientError as err:
             log.debug(err, exc_info=True)
 
@@ -647,6 +649,26 @@ class AppUpdate(LibUpdate):
         except ClientError as err:
             log.debug(err, exc_info=True)
     # End ToDo
+
+    def _postupdate_install(self):    
+        """After updating the application this method is looking 
+        for an install.sh file in the main directory to install
+        the application completely without the need of user 
+        interaction.
+
+        @TODO: Establish a call of a .bat file also for windows.
+        """
+        install_script = os.path.join(self._current_app_dir, 'install.sh')
+        os.chdir(os.path.expanduser('~'))
+
+        if os.path.isfile(install_script):
+            log.debug('Post-Update: Executing ' + str(install_script))
+            ret_value = os.system('sudo bash ' + str(install_script))
+            log.debug('Post-Update: Returned ' + str(ret_value))
+        else:
+            log.info('Post-Update: Skipping install script. File not found: ' +\
+                str(install_script))
+
 
     def _overwrite(self):
         # Unix: Overwrites the running applications binary
