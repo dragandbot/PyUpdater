@@ -663,7 +663,7 @@ class AppUpdate(LibUpdate):
 
         if os.path.isfile(install_script):
             log.debug('Post-Update: Executing ' + str(install_script))
-            ret_value = os.system('sudo bash ' + str(install_script))
+            ret_value = os.system('bash ' + str(install_script))
             log.debug('Post-Update: Returned ' + str(ret_value))
         else:
             log.info('Post-Update: Skipping install script. File not found: ' +\
