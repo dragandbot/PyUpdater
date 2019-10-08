@@ -24,6 +24,7 @@
 # ------------------------------------------------------------------------------
 from __future__ import unicode_literals
 
+import dns.resolver
 import hashlib
 import logging
 import os
@@ -62,9 +63,9 @@ def get_hash(data):
 def get_http_pool(secure=True):
     if secure is True:
         return urllib3.PoolManager(cert_reqs=str('CERT_REQUIRED'),
-                                   ca_certs=certifi.where())
+                                   ca_certs=certifi.where(), block=True, timeout = 5)
     else:
-        return urllib3.PoolManager()
+        return urllib3.PoolManager(block=True, timeout = 5)
 # End ToDo
 
 
@@ -152,9 +153,9 @@ class FileDownloader(object):
     def _get_http_pool(self, secure=True):
         if secure:
             _http = urllib3.PoolManager(cert_reqs=str('CERT_REQUIRED'),
-                                        ca_certs=certifi.where())
+                                        ca_certs=certifi.where(), block=True, timeout=5)
         else:
-            _http = urllib3.PoolManager()
+            _http = urllib3.PoolManager(block=True, timeout=5)
 
         if self.headers:
             _headers = urllib3.util.make_headers(**self.headers)
@@ -229,6 +230,7 @@ class FileDownloader(object):
         return int(rate)
 
     def _download_to_storage(self, check_hash=True):
+
         data = self._create_response()
 
         if data is None:
@@ -237,6 +239,7 @@ class FileDownloader(object):
 
         # Getting length of file to show progress
         self.content_length = FileDownloader._get_content_length(data)
+
         if self.content_length is None:
             log.debug('Content-Length not in headers')
             log.debug('Callbacks will not show time left '
@@ -260,6 +263,7 @@ class FileDownloader(object):
             binary_file = open(self.file_binary_path, 'wb')
             binary_file.write(block)
         hash_.update(block)
+
         while 1:
             # Grabbing start time for use with best block size
             start_block = time.time()
@@ -295,7 +299,6 @@ class FileDownloader(object):
             # -.-%
             percent = FileDownloader._calc_progress_percent(received_data,
                                                             self.content_length)
-
             # If content length is None we will return a static time remaining
             # --:--
             time_left = FileDownloader._calc_eta(start_download, time.time(),
@@ -362,9 +365,20 @@ class FileDownloader(object):
             file_url = url + url_quote(self.filename)
             log.debug('Url for request: %s', file_url)
             try:
+                # DNS timeout in urlib3 pool is not working properly
+                # There is an open issue https://github.com/psf/requests/issues/2347
+                # Therefore, we test if dns is working properly (e.g. proxy is messing)
+                # In this case, we try to resolve dragandbot.com
+                # If ok then continues, if fails then produces an exception
+                # dnspython pip package is required, added to requirements.txt
+                dns.resolver.query("dragandbot.com", lifetime=3)
+                dns.resolver.query("docker.com", lifetime=3) # For docker installation we need to test also this
+
                 data = self.http_pool.urlopen('GET', file_url,
                                               preload_content=False,
-                                              retries=max_download_retries)
+                                              retries=0,
+                                              timeout=5, pool_timeout=5)
+
             except urllib3.exceptions.SSLError:
                 log.debug('SSL cert not verified')
                 continue
@@ -372,6 +386,7 @@ class FileDownloader(object):
                 log.debug('MaxRetryError')
                 continue
             except Exception as e:
+                # DNS error
                 # Catch whatever else comes up and log it
                 # to help fix other http related issues
                 log.debug(str(e), exc_info=True)
